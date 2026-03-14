@@ -307,28 +307,51 @@
     els.weeklySummary.innerHTML = `<ul>${points.map((point) => `<li>${escapeHtml(point)}</li>`).join('')}</ul>`;
   }
 
-  function renderSourceTransparency() {
-    if (!state.sourceHealth.length) {
-      els.sourceTransparency.innerHTML = emptyState('No live source health is available. Check that the API route is deployed and returning JSON.');
-      return;
-    }
-    els.sourceTransparency.innerHTML = `
-      <table>
-        <thead><tr><th>Source</th><th>Status</th><th>Stories</th><th>Type</th><th>Notes</th></tr></thead>
+  ffunction renderSourceTransparency() {
+  if (!state.sourceHealth.length) {
+    els.sourceTransparency.innerHTML = emptyState('No live source health is available. Check that the API route is deployed and returning JSON.');
+    return;
+  }
+
+  const ordered = [...state.sourceHealth].sort((a, b) => {
+    if (a.status === b.status) return a.name.localeCompare(b.name);
+    return a.status === 'failed' ? -1 : 1;
+  });
+
+  els.sourceTransparency.innerHTML = `
+    <div class="table-scroll">
+      <table class="source-health-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Status</th>
+            <th>Stories</th>
+            <th>Type</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
         <tbody>
-          ${state.sourceHealth.map((source) => `
-            <tr>
-              <td><a href="${source.homepage}" target="_blank" rel="noreferrer">${escapeHtml(source.name)}</a></td>
+          ${ordered.map((source) => `
+            <tr class="${source.status === 'failed' ? 'is-failed' : 'is-live'}">
+              <td class="source-col">
+                <a class="source-link" href="${source.homepage}" target="_blank" rel="noreferrer">${escapeHtml(source.name)}</a>
+              </td>
               <td>${badge(source.status === 'ok' ? 'Live' : 'Failed', source.status === 'ok' ? 'good' : 'bad')}</td>
               <td>${source.storyCount || 0}</td>
-              <td>${escapeHtml(source.type || '')}</td>
-              <td>${escapeHtml(source.note || '')}</td>
+              <td class="type-col">${escapeHtml(source.type || '')}</td>
+              <td class="notes-col">
+                <details class="note-disclosure">
+                  <summary>${escapeHtml(truncateText(source.note || '', 58))}</summary>
+                  <div class="note-body">${escapeHtml(source.note || '')}</div>
+                </details>
+              </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
-    `;
-  }
+    </div>
+  `;
+}
 
   function renderWatchlist() {
     els.watchlistTags.innerHTML = state.watchlist.map((term) => `
