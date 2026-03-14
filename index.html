@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Advertising Intelligence Command Center V2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Advertising Intelligence</p>
+          <h1>Command Center <span>V2</span></h1>
+          <p class="subtle">Executive signal on top. Operator-grade detail underneath.</p>
+        </div>
+        <div class="topbar-actions">
+          <input id="globalSearch" type="search" placeholder="Search headlines, brands, agencies, platforms, regions..." />
+          <button id="refreshBtn" class="btn btn-primary">Refresh</button>
+        </div>
+      </header>
+
+      <section id="statusBanner" class="status-banner hidden"></section>
+
+      <section class="toolbar card">
+        <div class="filters-grid">
+          <label>
+            <span>Region</span>
+            <select id="regionFilter"></select>
+          </label>
+          <label>
+            <span>Topic</span>
+            <select id="topicFilter"></select>
+          </label>
+          <label>
+            <span>Impact</span>
+            <select id="impactFilter"></select>
+          </label>
+          <label>
+            <span>Source Type</span>
+            <select id="sourceTypeFilter"></select>
+          </label>
+          <label>
+            <span>Time Window</span>
+            <select id="timeFilter"></select>
+          </label>
+          <label>
+            <span>View</span>
+            <select id="layoutMode"></select>
+          </label>
+        </div>
+        <div class="meta-strip">
+          <div class="meta-pill"><strong id="lastUpdated">Never</strong> last updated</div>
+          <div class="meta-pill"><strong id="storyCount">0</strong> stories loaded</div>
+          <div class="meta-pill"><strong id="sourceCount">0</strong> sources succeeded</div>
+          <div class="meta-pill"><strong id="sourceFailedCount">0</strong> sources failed</div>
+          <div class="meta-pill"><strong id="watchlistCount">0</strong> watchlist terms</div>
+        </div>
+      </section>
+
+      <main id="dashboard" class="dashboard-grid layout-hybrid">
+        <section class="module wide card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">01</p>
+              <h2>Executive Pulse</h2>
+              <p class="module-subtitle">The highest-signal stories in the market right now.</p>
+            </div>
+            <button id="exportExecutiveBtn" class="btn btn-secondary">Export</button>
+          </div>
+          <div id="executivePulse" class="cards-grid cards-grid-5"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">02</p>
+              <h2>Topic Radar</h2>
+              <p class="module-subtitle">Momentum by topic, not just headline volume.</p>
+            </div>
+          </div>
+          <div id="topicRadar" class="topic-grid"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">10</p>
+              <h2>Saved Watchlists</h2>
+              <p class="module-subtitle">Personal monitoring across brands, agencies, themes, and markets.</p>
+            </div>
+          </div>
+          <div class="watchlist-controls">
+            <input id="watchlistInput" type="text" placeholder="Add Publicis, Google Ads, Saudi, retail media..." />
+            <button id="addWatchlistBtn" class="btn btn-primary">Add</button>
+          </div>
+          <div id="watchlistTags" class="watchlist-tags"></div>
+          <div id="watchlistStories" class="compact-list"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">03</p>
+              <h2>Agency &amp; Account Moves</h2>
+              <p class="module-subtitle">New business, leadership, restructures, partnerships, and M&amp;A.</p>
+            </div>
+          </div>
+          <div id="agencyMoves" class="table-shell"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">04</p>
+              <h2>Platform Change Monitor</h2>
+              <p class="module-subtitle">Operational updates from major ad and platform ecosystems.</p>
+            </div>
+          </div>
+          <div id="platformChanges" class="timeline"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">05</p>
+              <h2>AI &amp; Innovation Watch</h2>
+              <p class="module-subtitle">Practical AI developments with real workflow or commercial impact.</p>
+            </div>
+          </div>
+          <div id="aiInnovation" class="cards-grid cards-grid-2"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">06</p>
+              <h2>Regulation, Privacy &amp; Measurement Desk</h2>
+              <p class="module-subtitle">Standards, compliance, addressability, and attribution watchouts.</p>
+            </div>
+          </div>
+          <div id="regulationDesk" class="cards-grid cards-grid-2"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">07</p>
+              <h2>Creative &amp; Campaign Intelligence</h2>
+              <p class="module-subtitle">Creative work, campaign launches, and ideas worth stealing from.</p>
+            </div>
+          </div>
+          <div id="creativeIntel" class="cards-grid cards-grid-3"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">08</p>
+              <h2>MENA / GCC Market Lens</h2>
+              <p class="module-subtitle">Regional signal across UAE, Saudi, GCC, and wider MENA.</p>
+            </div>
+          </div>
+          <div id="menaLens" class="cards-grid cards-grid-2"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">11</p>
+              <h2>Weekly Intelligence Summary</h2>
+              <p class="module-subtitle">Synthesis from verified stories, not invented commentary.</p>
+            </div>
+          </div>
+          <div id="weeklySummary" class="summary-panel"></div>
+        </section>
+
+        <section class="module card">
+          <div class="module-header">
+            <div>
+              <p class="module-kicker">09</p>
+              <h2>Source Transparency Panel</h2>
+              <p class="module-subtitle">Configured sources, fetch status, and live source health.</p>
+            </div>
+          </div>
+          <div id="sourceTransparency" class="table-shell"></div>
+        </section>
+      </main>
+    </div>
+
+    <aside id="drawer" class="drawer" aria-hidden="true">
+      <div class="drawer-backdrop" id="drawerBackdrop"></div>
+      <div class="drawer-panel">
+        <div class="drawer-header">
+          <div>
+            <p id="drawerEyebrow" class="eyebrow"></p>
+            <h3 id="drawerTitle"></h3>
+          </div>
+          <button id="drawerClose" class="drawer-close">✕</button>
+        </div>
+        <div id="drawerBody" class="drawer-body"></div>
+      </div>
+    </aside>
+
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

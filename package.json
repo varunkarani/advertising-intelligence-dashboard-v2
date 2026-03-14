@@ -1,0 +1,9 @@
+{
+  "name": "advertising-intelligence-dashboard-v2",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}
