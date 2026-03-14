@@ -10,9 +10,11 @@ const SOURCES = [
     region: 'Global',
     defaultTopic: 'Privacy & Regulation',
     selectors: [
-      'article a[href*="/news/"]',
-      'main a[href*="/news/"]',
-      'a[href*="/blog/"]'
+      'article',
+      'main article',
+      '.post',
+      '.news-item',
+      'a[href*="/news/"]'
     ],
     keywords: ['privacy', 'regulation', 'measurement', 'guidelines', 'creator', 'commerce']
   },
@@ -25,9 +27,12 @@ const SOURCES = [
     region: 'MENA',
     defaultTopic: 'MENA Market Moves',
     selectors: [
+      'article',
+      '.post',
+      '.blog-item',
+      '.news-item',
       'a[href*="news"]',
-      'a[href*="event"]',
-      'article a'
+      'a[href*="event"]'
     ],
     keywords: ['mena', 'gcc', 'uae', 'saudi', 'regional', 'summit']
   },
@@ -40,9 +45,11 @@ const SOURCES = [
     region: 'Global',
     defaultTopic: 'Search / Social / Video / CTV',
     selectors: [
-      'a[href*="google-ads"]',
-      'main a',
-      'article a'
+      'a[href*="/google-ads/answer/"]',
+      'a[href*="/google-ads/announcements/"]',
+      'main a[href*="/answer/"]',
+      'article a',
+      'main a'
     ],
     keywords: ['google ads', 'youtube', 'performance max', 'measurement', 'search']
   },
@@ -55,9 +62,10 @@ const SOURCES = [
     region: 'Global',
     defaultTopic: 'Media & Platforms',
     selectors: [
+      'article',
+      'main article',
       'a[href*="/business/news/"]',
-      'main a',
-      'article a'
+      'main a'
     ],
     keywords: ['meta', 'instagram', 'facebook', 'ads', 'threads', 'reels']
   },
@@ -70,9 +78,10 @@ const SOURCES = [
     region: 'Global',
     defaultTopic: 'Media & Platforms',
     selectors: [
+      'article',
+      'main article',
       'a[href*="/business/en/blog/"]',
-      'main a',
-      'article a'
+      'main a'
     ],
     keywords: ['tiktok', 'commerce', 'creative', 'ads', 'shop']
   },
@@ -85,9 +94,14 @@ const SOURCES = [
     region: 'Global',
     defaultTopic: 'Creative & Campaigns',
     selectors: [
-      'a[href*="/en/latest/"]',
-      'article a',
-      'main a'
+      'article',
+      '[class*="latest"] article',
+      '[class*="card"]',
+      '[class*="teaser"]',
+      '[class*="listing"]',
+      'a[href*="/content/"]',
+      'a[href*="/newsandopinion/"]',
+      'a[href*="/latest/"]'
     ],
     keywords: ['effectiveness', 'creative', 'retail media', 'influencer', 'campaign']
   },
@@ -100,8 +114,9 @@ const SOURCES = [
     region: 'Global',
     defaultTopic: 'Agency World',
     selectors: [
+      'article',
+      'main article',
       'a[href*="/news/"]',
-      'article a',
       'main a'
     ],
     keywords: ['agency', 'campaign', 'creative', 'client', 'pitch']
@@ -115,8 +130,9 @@ const SOURCES = [
     region: 'US',
     defaultTopic: 'Agency World',
     selectors: [
+      'article',
+      'main article',
       'a[href*="/news/"]',
-      'article a',
       'main a'
     ],
     keywords: ['agency', 'marketing', 'brand', 'measurement', 'creator']
@@ -144,7 +160,7 @@ export default async function handler(req, res) {
     try {
       const response = await fetch(source.url, {
         headers: {
-          'user-agent': 'Mozilla/5.0 (compatible; AdvertisingIntelligenceBot/2.0; +https://vercel.com)',
+          'user-agent': 'Mozilla/5.0 (compatible; AdvertisingIntelligenceBot/2.1; +https://vercel.com)',
           'accept-language': 'en-US,en;q=0.9'
         }
       });
@@ -174,7 +190,9 @@ export default async function handler(req, res) {
         type: source.type,
         status: filtered.length ? 'ok' : 'failed',
         storyCount: filtered.length,
-        note: filtered.length ? 'Parsed server-side' : 'No stories parsed from page structure'
+        note: filtered.length
+          ? parsed.note || 'Parsed server-side with source-specific selectors'
+          : 'No stories parsed from current page structure'
       });
     } catch (error) {
       sourceHealth.push({
@@ -183,12 +201,14 @@ export default async function handler(req, res) {
         type: source.type,
         status: 'failed',
         storyCount: 0,
-        note: error.message.slice(0, 140)
+        note: clean(error.message).slice(0, 140)
       });
     }
   }
 
-  const deduped = dedupeStories(stories).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  const deduped = dedupeStories(stories)
+    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
   res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=3600');
   res.status(200).json({
     generatedAt: new Date().toISOString(),
@@ -199,45 +219,239 @@ export default async function handler(req, res) {
 
 function parseSourceHtml(html, source) {
   const $ = cheerio.load(html);
+
+  if (source.id === 'google-ads-announcements') {
+    const items = parseGoogleAdsHtml($, source);
+    items.note = 'Parsed with Google Ads support-page selectors';
+    return items;
+  }
+
+  if (source.id === 'warc-latest') {
+    const items = parseWarcHtml($, source);
+    items.note = 'Parsed with WARC content-card selectors';
+    return items;
+  }
+
+  const items = parseGenericHtml($, source);
+  items.note = 'Parsed with generic source selectors';
+  return items;
+}
+
+function parseGoogleAdsHtml($, source) {
+  const items = [];
+  const seen = new Set();
+
+  const rootSelectors = [
+    'main article',
+    'article',
+    'main li',
+    'main section',
+    '.hcfe-content li',
+    '.hcfe-content section',
+    '.announcement',
+    '.article',
+    '.support-article'
+  ];
+
+  for (const rootSelector of rootSelectors) {
+    $(rootSelector).each((_, el) => {
+      const root = $(el);
+      const story = extractStoryFromRoot(root, source, {
+        linkSelectors: [
+          'a[href*="/google-ads/answer/"]',
+          'a[href*="/google-ads/announcements/"]',
+          'a[href*="/answer/"]'
+        ],
+        headingSelectors: ['h1', 'h2', 'h3', 'h4', '[role="heading"]'],
+        summarySelectors: ['p', '.summary', '.snippet', '.description', 'div'],
+        dateSelectors: ['time', '.date', '.published', '.announcement-date', 'span']
+      });
+
+      if (shouldKeepStory(story, source, seen)) {
+        seen.add(story._key);
+        items.push(finalizeStory(story, source));
+      }
+    });
+
+    if (items.length >= 8) break;
+  }
+
+  if (items.length < 3) {
+    for (const selector of source.selectors) {
+      $(selector).each((_, el) => {
+        const anchor = $(el);
+        const story = extractStoryFromAnchor(anchor, source);
+
+        if (shouldKeepStory(story, source, seen)) {
+          seen.add(story._key);
+          items.push(finalizeStory(story, source));
+        }
+      });
+
+      if (items.length >= 8) break;
+    }
+  }
+
+  return items.slice(0, 8);
+}
+
+function parseWarcHtml($, source) {
+  const items = [];
+  const seen = new Set();
+
+  const rootSelectors = [
+    'main article',
+    'article',
+    '[class*="latest"]',
+    '[class*="card"]',
+    '[class*="teaser"]',
+    '[class*="listing"]',
+    '[class*="river"]'
+  ];
+
+  for (const rootSelector of rootSelectors) {
+    $(rootSelector).each((_, el) => {
+      const root = $(el);
+      const story = extractStoryFromRoot(root, source, {
+        linkSelectors: [
+          'a[href*="/content/"]',
+          'a[href*="/newsandopinion/"]',
+          'a[href*="/latest/"]',
+          'a[href*="/en/"]'
+        ],
+        headingSelectors: ['h1', 'h2', 'h3', 'h4', '[role="heading"]'],
+        summarySelectors: ['p', '.deck', '.standfirst', '.summary', '.teaser', 'div'],
+        dateSelectors: ['time', '.date', '.published', 'span']
+      });
+
+      if (shouldKeepStory(story, source, seen)) {
+        seen.add(story._key);
+        items.push(finalizeStory(story, source));
+      }
+    });
+
+    if (items.length >= 8) break;
+  }
+
+  if (items.length < 3) {
+    for (const selector of source.selectors) {
+      $(selector).each((_, el) => {
+        const anchor = $(el);
+        const story = extractStoryFromAnchor(anchor, source);
+
+        if (shouldKeepStory(story, source, seen)) {
+          seen.add(story._key);
+          items.push(finalizeStory(story, source));
+        }
+      });
+
+      if (items.length >= 8) break;
+    }
+  }
+
+  return items.slice(0, 8);
+}
+
+function parseGenericHtml($, source) {
   const items = [];
   const seen = new Set();
 
   for (const selector of source.selectors) {
-    $(selector).each((_, element) => {
-      const anchor = $(element);
-      const hrefRaw = anchor.attr('href');
-      const title = clean(anchor.text());
-      if (!hrefRaw || !title || title.length < 25) return;
+    $(selector).each((_, el) => {
+      const root = $(el);
 
-      const href = absolutizeUrl(hrefRaw, source.homepage);
-      const key = `${title}|${href}`;
-      if (seen.has(key)) return;
-      if (isNoise(title, href, source)) return;
+      const story = root.is('a')
+        ? extractStoryFromAnchor(root, source)
+        : extractStoryFromRoot(root, source, {
+            linkSelectors: ['a[href]'],
+            headingSelectors: ['h1', 'h2', 'h3', 'h4', '[role="heading"]'],
+            summarySelectors: ['p', '.summary', '.excerpt', '.dek', '.standfirst', 'div'],
+            dateSelectors: ['time', '.date', '.published', 'span']
+          });
 
-      seen.add(key);
-      items.push(normalizeStory({ title, href, source }));
+      if (shouldKeepStory(story, source, seen)) {
+        seen.add(story._key);
+        items.push(finalizeStory(story, source));
+      }
     });
+
     if (items.length >= 10) break;
   }
 
-  return items.slice(0, 10);
+  return items.slice(0, 8);
 }
 
-function normalizeStory({ title, href, source }) {
-  const lowered = title.toLowerCase();
+function extractStoryFromRoot(root, source, options = {}) {
+  const link = firstNonEmptySelection(root, options.linkSelectors || ['a[href]']);
+  const heading = firstNonEmptySelection(root, options.headingSelectors || ['h1', 'h2', 'h3', 'h4']);
+  const summary = firstNonEmptyText(root, options.summarySelectors || ['p', 'div']);
+  const dateText = firstNonEmptyText(root, options.dateSelectors || ['time', 'span']);
+
+  const hrefRaw = link?.attr('href') || heading?.find('a[href]').first().attr('href') || root.find('a[href]').first().attr('href');
+  const title = clean(
+    heading?.text() ||
+    link?.text() ||
+    root.find('a[href]').first().text()
+  );
+
+  const href = absolutizeUrl(hrefRaw, source.homepage);
+
+  return {
+    title,
+    href,
+    summary: sanitizeSummary(summary, title),
+    publishedAt: parseDateFromText(dateText),
+    _key: `${title}|${href}`
+  };
+}
+
+function extractStoryFromAnchor(anchor, source) {
+  const parent = anchor.closest('article, li, section, div');
+  const hrefRaw = anchor.attr('href');
+  const title = clean(anchor.text());
+  const href = absolutizeUrl(hrefRaw, source.homepage);
+  const summary = sanitizeSummary(
+    clean(parent.find('p').first().text()) || clean(parent.text()),
+    title
+  );
+  const publishedAt = parseDateFromText(
+    clean(parent.find('time').first().attr('datetime')) ||
+    clean(parent.find('time').first().text()) ||
+    clean(parent.find('.date').first().text())
+  );
+
+  return {
+    title,
+    href,
+    summary,
+    publishedAt,
+    _key: `${title}|${href}`
+  };
+}
+
+function shouldKeepStory(story, source, seen) {
+  if (!story) return false;
+  if (!story.href || !story.title) return false;
+  if (story.title.length < 16) return false;
+  if (seen.has(story._key)) return false;
+  if (isNoise(story.title, story.href, source)) return false;
+  return true;
+}
+
+function finalizeStory(story, source) {
+  const lowered = story.title.toLowerCase();
   const topic = inferTopic(lowered, source.defaultTopic);
   const region = inferRegion(lowered, source.region);
   const impact = inferImpact(lowered, source.type);
-  const summary = buildSummary(title, source.name, topic, region);
-  const publishedAt = inferPublishedAtFromText(lowered) || new Date().toISOString();
+
   return {
-    id: `${source.id}-${slugify(title).slice(0, 60)}`,
-    title,
-    summary,
-    link: href,
+    id: `${source.id}-${slugify(story.title).slice(0, 60)}`,
+    title: story.title,
+    summary: story.summary || buildSummary(story.title, source.name, topic, region),
+    link: story.href,
     source: source.name,
     sourceType: source.type,
-    publishedAt,
+    publishedAt: story.publishedAt || new Date().toISOString(),
     region,
     topic,
     tags: inferTags(lowered, source.keywords),
@@ -245,6 +459,55 @@ function normalizeStory({ title, href, source }) {
     strategicImplication: strategicImplication(topic),
     impact
   };
+}
+
+function firstNonEmptySelection(root, selectors = []) {
+  for (const selector of selectors) {
+    const found = root.find(selector).first();
+    if (found.length && clean(found.text())) return found;
+  }
+  return null;
+}
+
+function firstNonEmptyText(root, selectors = []) {
+  for (const selector of selectors) {
+    const nodes = root.find(selector).toArray();
+    for (const node of nodes) {
+      const text = clean(root.find(selector).filter((i, el) => el === node).first().text());
+      if (text && text.length > 10) return text;
+    }
+  }
+  return '';
+}
+
+function sanitizeSummary(summary, title) {
+  const cleanSummary = clean(summary);
+  if (!cleanSummary) return '';
+  if (cleanSummary === title) return '';
+  return cleanSummary.slice(0, 220);
+}
+
+function parseDateFromText(value) {
+  const raw = clean(value);
+  if (!raw) return null;
+
+  const direct = Date.parse(raw);
+  if (!Number.isNaN(direct)) return new Date(direct).toISOString();
+
+  const match = raw.match(
+    /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b/i
+  );
+  if (match) {
+    const parsed = Date.parse(match[0]);
+    if (!Number.isNaN(parsed)) return new Date(parsed).toISOString();
+  }
+
+  if (raw.toLowerCase().includes('today')) return new Date().toISOString();
+  if (raw.toLowerCase().includes('yesterday')) {
+    return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  return null;
 }
 
 function inferTopic(text, fallback) {
@@ -295,12 +558,6 @@ function buildSummary(title, sourceName, topic, region) {
   return `${sourceName} published an item relevant to ${topic.toLowerCase()}${region && region !== 'Global' ? ` in ${region}` : ''}: ${title}.`;
 }
 
-function inferPublishedAtFromText(text) {
-  if (text.includes('today')) return new Date().toISOString();
-  if (text.includes('yesterday')) return new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  return null;
-}
-
 function dedupeStories(stories) {
   const seen = new Set();
   return stories.filter((story) => {
@@ -313,8 +570,33 @@ function dedupeStories(stories) {
 
 function isNoise(title, href, source) {
   const lowered = title.toLowerCase();
-  if (['sign in', 'subscribe', 'newsletter', 'privacy policy', 'terms of use', 'cookie'].some((term) => lowered.includes(term))) return true;
+
+  if ([
+    'sign in',
+    'subscribe',
+    'newsletter',
+    'privacy policy',
+    'terms of use',
+    'cookie',
+    'help center',
+    'community',
+    'advertise with us',
+    'contact us',
+    'learn more'
+  ].some((term) => lowered.includes(term))) return true;
+
   if (href === source.homepage) return true;
+
+  if (source.id === 'google-ads-announcements') {
+    const valid = href.includes('/google-ads/answer/') || href.includes('/google-ads/announcements/');
+    if (!valid) return true;
+  }
+
+  if (source.id === 'warc-latest') {
+    const looksContent = href.includes('/content/') || href.includes('/newsandopinion/') || href.includes('/latest/');
+    if (!looksContent) return true;
+  }
+
   return false;
 }
 
@@ -322,7 +604,7 @@ function absolutizeUrl(href, base) {
   try {
     return new URL(href, base).toString();
   } catch {
-    return href;
+    return href || '';
   }
 }
 
