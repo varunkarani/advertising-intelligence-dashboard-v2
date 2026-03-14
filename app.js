@@ -496,6 +496,11 @@
       .replaceAll("'", '&#39;');
   }
 
+  function truncateText(value, max = 60) {
+  const text = String(value || '').trim();
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}
   function showBanner(message, tone) {
     els.statusBanner.className = `status-banner ${tone || ''}`;
     els.statusBanner.textContent = message;
